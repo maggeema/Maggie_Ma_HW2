@@ -1,63 +1,64 @@
+#include "image.h"
 #include <iostream>
 #include <vector>
-#include <queue>
-#include "image.h"  // Include your header file for the Image class
 
 using namespace std;
 using namespace ComputerVisionProjects;
 
-void labelRegions(const Image &binary_image, Image &labeled_image) {
-    int width = binary_image.num_columns();
-    int height = binary_image.num_rows();
-    
-    // Create an empty labeled image using the default constructor
-    labeled_image.AllocateSpaceAndSetSize(height, width); // Allocate space for the labeled image
+void LabelConnectedComponents(const Image &input_image, Image *output_image) {
+    int num_rows = input_image.num_rows();
+    int num_columns = input_image.num_columns();
 
-    vector<vector<int>> labels(height, vector<int>(width, 0));
-    int label = 1;  // Start labeling from 1 (or a non-zero value)
+    // Create an output image initialized to 0
+    output_image->AllocateSpaceAndSetSize(num_rows, num_columns);
+    output_image->SetNumberGrayLevels(255); // Set max gray levels
 
-    // Directions for 4-connected neighbors
-    int directions[4][2] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
-    vector<vector<bool>> visited(height, vector<bool>(width, false));
+    vector<vector<int>> label_map(num_rows, vector<int>(num_columns, 0));
+    int current_label = 1; // Start labeling from 1
 
-    // First pass: Label connected components
-    for (int i = 0; i < height; ++i) {
-        for (int j = 0; j < width; ++j) {
-            if (binary_image.GetPixel(i, j) == 255 && !visited[i][j]) {
-                // Start a BFS for a new connected component
-                queue<pair<int, int>> q;
-                q.push({i, j});
-                visited[i][j] = true;
+    // First pass: Label components
+    for (int row = 0; row < num_rows; ++row) {
+        for (int col = 0; col < num_columns; ++col) {
+            if (input_image.GetPixel(row, col) == 255 && label_map[row][col] == 0) { // If it's a foreground pixel and not labeled
+                // Perform DFS or BFS to label the entire connected component
+                // Here we use a simple stack-based DFS for labeling
+                vector<pair<int, int>> stack;
+                stack.push_back({row, col});
+                label_map[row][col] = current_label;
 
-                while (!q.empty()) {
-                    auto [x, y] = q.front();
-                    q.pop();
-                    labels[x][y] = label;  // Assign label
+                while (!stack.empty()) {
+                    auto [r, c] = stack.back();
+                    stack.pop_back();
 
-                    for (auto &dir : directions) {
-                        int new_x = x + dir[0];
-                        int new_y = y + dir[1];
+                    // Check 8-connectivity (up, down, left, right, and diagonals)
+                    for (int dr = -1; dr <= 1; ++dr) {
+                        for (int dc = -1; dc <= 1; ++dc) {
+                            if (dr == 0 && dc == 0) continue; // Skip the current pixel
+                            int new_row = r + dr;
+                            int new_col = c + dc;
 
-                        if (new_x >= 0 && new_x < height && new_y >= 0 && new_y < width &&
-                            binary_image.GetPixel(new_x, new_y) == 255 && !visited[new_x][new_y]) {
-                            visited[new_x][new_y] = true;
-                            q.push({new_x, new_y});
+                            if (new_row >= 0 && new_row < num_rows && 
+                                new_col >= 0 && new_col < num_columns &&
+                                input_image.GetPixel(new_row, new_col) == 255 && 
+                                label_map[new_row][new_col] == 0) {
+                                label_map[new_row][new_col] = current_label;
+                                stack.push_back({new_row, new_col});
+                            }
                         }
                     }
                 }
-                label++;  // Increment the label for the next component
+                current_label++; // Move to the next label for the next component
             }
         }
     }
 
-    // Second pass: Create the labeled image
-    for (int i = 0; i < height; ++i) {
-        for (int j = 0; j < width; ++j) {
-            if (labels[i][j] > 0) {
-                // Scale the label for visibility, ensuring it remains within valid range
-                labeled_image.SetPixel(i, j, (labels[i][j] * (255 / label))); 
+    // Second pass: Create the output image based on label_map
+    for (int row = 0; row < num_rows; ++row) {
+        for (int col = 0; col < num_columns; ++col) {
+            if (label_map[row][col] > 0) {
+                output_image->SetPixel(row, col, label_map[row][col] * (255 / current_label)); // Normalize to 0-255
             } else {
-                labeled_image.SetPixel(i, j, 0); // Background
+                output_image->SetPixel(row, col, 0); // Background remains black
             }
         }
     }
@@ -65,33 +66,27 @@ void labelRegions(const Image &binary_image, Image &labeled_image) {
 
 int main(int argc, char **argv) {
     if (argc != 3) {
-        cerr << "Usage: " << argv[0] << " {input binary image} {output labeled image}" << endl;
+        cout << "Usage: " << argv[0] << " {input_binary_image} {output_labeled_image}" << endl;
         return 1;
     }
 
     const string input_file(argv[1]);
     const string output_file(argv[2]);
 
-    // Read input binary image
-    Image binary_image;
-    if (!ReadImage(input_file, &binary_image)) {
-        cerr << "Can't open file " << input_file << endl;
+    Image input_image;
+    if (!ReadImage(input_file, &input_image)) {
+        cout << "Can't open file " << input_file << endl;
         return 1;
     }
 
-    // Prepare output labeled image
-    Image labeled_image; // Use the default constructor
+    Image output_image;
+    LabelConnectedComponents(input_image, &output_image);
 
-    // Label regions in the binary image
-    labelRegions(binary_image, labeled_image);
-
-    // Write the labeled image to the output file
-    if (!WriteImage(output_file, labeled_image)) {
-        cerr << "Can't write to file " << output_file << endl;
+    if (!WriteImage(output_file, output_image)) {
+        cout << "Can't write to file " << output_file << endl;
         return 1;
     }
 
-    cout << "Processing completed successfully!" << endl;
-
+    cout << "Labeled image saved as: " << output_file << endl;
     return 0;
 }
