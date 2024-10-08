@@ -5,6 +5,11 @@
 #include <string>
 #include <vector>
 
+#define _USE_MATH_DEFINES
+#ifndef M_PI
+    #define M_PI 3.14159265358979323846
+#endif
+
 using namespace std;
 using namespace ComputerVisionProjects;
 
@@ -15,7 +20,7 @@ vector<pair<int, int>> ComputeCentroids(const Image &image) {
     size_t width = image.num_columns();
     size_t height = image.num_rows();
 
-    vector<int> count(256, 0); // Assuming labels range from 0 to 255
+    vector<int> count(256, 0); 
     vector<long long> sumX(256, 0);
     vector<long long> sumY(256, 0);
 
@@ -51,7 +56,8 @@ void ComputeAndDrawOrientation(const vector<pair<int, int>> &centroids, const Im
         for (int y = 0; y < image.num_rows(); ++y) {
             for (int x = 0; x < image.num_columns(); ++x) {
                 int label = image.GetPixel(y, x);
-                if (label > 0) { // Ignore background
+                if (label > 0) { 
+                    // Ignore background
                     double dx = x - cx;
                     double dy = y - cy;
                     a += dy * dy;
@@ -66,12 +72,13 @@ void ComputeAndDrawOrientation(const vector<pair<int, int>> &centroids, const Im
         const double theta2 = theta1 + M_PI / 2.0;
 
         // Draw the orientation line from centroid
-        int line_length = 30; // Adjust length of the line
+        int line_length = 30;
         int x_end = cx + static_cast<int>(line_length * cos(theta1));
         int y_end = cy + static_cast<int>(line_length * sin(theta1));
 
         // Draw line starting from centroid and extending along the calculated orientation
-        DrawLine(cx, cy, x_end, y_end, 255, &output_image); // 255 = white line
+        // 255 = white line
+        DrawLine(cx, cy, x_end, y_end, 255, &output_image); 
     }
 }
 
@@ -89,7 +96,8 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    Image output_image = an_image; // Create a copy for output
+    // Create a copy for output
+    Image output_image = an_image; 
 
     // Compute centroids
     vector<pair<int, int>> centroids = ComputeCentroids(an_image);
